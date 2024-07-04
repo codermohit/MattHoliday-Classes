@@ -1,0 +1,2 @@
+To pass in the numbers to the program from 'nums.txt' use the command :
+go run main.go < nums.txt
