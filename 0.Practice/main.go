@@ -1,53 +1,44 @@
 package main
 
 import (
-	"context"
+	"bufio"
+	"fmt"
 	"log"
 	"net/http"
-	"time"
+	"os"
 )
 
-type Result struct {
-	url     string
-	err     error
-	latency time.Duration
-}
-
-func getUrl(ctx context.Context, url string, ch chan<- Result) {
-	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		ch <- Result{url, err, 0}
-	}
-
-	if resp, err := http.DefaultClient.Do(req); err != nil {
-		ch <- Result{url, err, 0}
-	} else {
-		ch <- Result{url, nil, time.Since(start).Round(time.Millisecond)}
-		resp.Body.Close()
-	}
-}
-
 func main() {
+	resp, err := http.Get("https://www.foxnxx.com/")
+	fmt.Println("Data received")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	defer resp.Body.Close()
+	data := resp.Body
 
-	list := []string{"https://google.com", "https://facebook.com", "https://msn.org", "https://bing.com", "https://wsj.com", "https://nytimes.com", "https://gobyexample.com"}
+	file, err := os.Create("data.html")
+	if err != nil {
+		log.Fatal(err.Error())
+	}
+	defer file.Close()
 
-	resultChan := make(chan Result)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-
-	for _, url := range list {
-		go getUrl(ctx, url, resultChan)
+	scan := bufio.NewScanner(data)
+	var i int
+	for scan.Scan() {
+		i++
+		fmt.Println("Writing...", i)
+		data := scan.Bytes()
+		file.Write(data)
 	}
 
-	for range len(list) {
-		result := <-resultChan
+	http.HandleFunc("GET /", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./data.html")
+		return
+	})
 
-		if result.err != nil {
-			log.Printf("%-20s %s\n", result.url, result.err.Error())
-		} else {
-			log.Printf("%-20s , %s", result.url, result.latency)
-		}
+	err = http.ListenAndServe(":8000", nil)
+	if err != nil {
+		log.Fatal(err.Error())
 	}
 }
